@@ -9,6 +9,7 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(reshape2)
+library(ggpubr)
 
 # Parameters ----
 
@@ -269,8 +270,19 @@ create_variability_plots <- function(variability_results) {
         Setting %in% 21:24 ~ 0.80
       ),
       scenario_num = ((Setting - 1) %% 4) + 1,
-      scenario_label = variability_results$scenario_labels[scenario_num],
-      scenario_label = factor(scenario_label, levels = variability_results$scenario_labels)
+      # Create compact labels with less whitespace
+      scenario_label = case_when(
+        scenario_num == 1 ~ "FVC=0.5 6MWT=0 MIP=0",
+        scenario_num == 2 ~ "FVC=0.5 6MWT=0.25 MIP=0",
+        scenario_num == 3 ~ "FVC=0.5 6MWT=0.5 MIP=0.5",
+        scenario_num == 4 ~ "FVC=0 6MWT=0 MIP=0"
+      ),
+      scenario_label = factor(scenario_label, levels = c(
+        "FVC=0.5 6MWT=0 MIP=0",
+        "FVC=0.5 6MWT=0.25 MIP=0",
+        "FVC=0.5 6MWT=0.5 MIP=0.5",
+        "FVC=0 6MWT=0 MIP=0"
+      ))
     )
 
   # Selection variability boxplot
@@ -278,18 +290,21 @@ create_variability_plots <- function(variability_results) {
                           aes(x = factor(info_fraction), y = SelectionProb, color = endpoint_name)) +
     geom_boxplot(outlier.shape = NA) +
     facet_wrap(~ scenario_label, nrow = 1) +
-    theme_bw() +
     labs(
-      x = "Information Cohort Fraction (%)",
-      y = "Endpoint Selection Probability",
+      x = "Information Cohort Fraction (ICF) (%)",
+      y = "Endpoint Selection",
       color = "Endpoint"
     ) +
+    theme_bw() +
     scale_y_continuous(labels = scales::percent) +
     scale_x_discrete(labels = function(x) paste0(as.numeric(x) * 100, "%")) +
     theme(
-      text = element_text(size = 10),
-      strip.text = element_blank(),
-      axis.text.x = element_text(angle = 45, hjust = 1)
+      text = element_text(size = 8),
+      strip.text = element_text(size = 7),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+      legend.position = "bottom",
+      legend.margin = margin(t = -5, unit = "pt"),
+      axis.title.x = element_text(margin = margin(t = 5, unit = "pt"))
     )
 
   # Power variability data
@@ -307,8 +322,19 @@ create_variability_plots <- function(variability_results) {
         Setting %in% 21:24 ~ 0.80
       ),
       scenario_num = ((Setting - 1) %% 4) + 1,
-      scenario_label = variability_results$scenario_labels[scenario_num],
-      scenario_label = factor(scenario_label, levels = variability_results$scenario_labels),
+      # Create compact labels with less whitespace
+      scenario_label = case_when(
+        scenario_num == 1 ~ "FVC=0.5 6MWT=0 MIP=0",
+        scenario_num == 2 ~ "FVC=0.5 6MWT=0.25 MIP=0",
+        scenario_num == 3 ~ "FVC=0.5 6MWT=0.5 MIP=0.5",
+        scenario_num == 4 ~ "FVC=0 6MWT=0 MIP=0"
+      ),
+      scenario_label = factor(scenario_label, levels = c(
+        "FVC=0.5 6MWT=0 MIP=0",
+        "FVC=0.5 6MWT=0.25 MIP=0",
+        "FVC=0.5 6MWT=0.5 MIP=0.5",
+        "FVC=0 6MWT=0 MIP=0"
+      )),
       # Calculate variance for power (binomial: p*(1-p))
       power_variance = Power * (1 - Power)
     )
@@ -320,37 +346,20 @@ create_variability_plots <- function(variability_results) {
     facet_wrap(~ scenario_label, nrow = 1) +
     theme_bw() +
     labs(
-      x = "Information Cohort Fraction (%)",
-      y = "Study Success Variance"
+      x = "Information Cohort Fraction (ICF) (%)",
+      y = "Success Variability"
     ) +
     scale_x_discrete(labels = function(x) paste0(as.numeric(x) * 100, "%")) +
     theme(
-      text = element_text(size = 10),
-      strip.text = element_blank(),
-      axis.text.x = element_text(angle = 45, hjust = 1)
+      text = element_text(size = 8),
+      strip.text = element_text(size = 7),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 8)
     )
 
   return(list(
     selection_plot = selection_plot,
     power_plot = power_plot
   ))
-}
-
-create_scenario_labels <- function() {
-  label_data <- data.frame(
-    details = c(
-      "FVC=0.5\n6MWT=0\nMIP=0",
-      "FVC=0.5\n6MWT=0.25\nMIP=0",
-      "FVC=0.5\n6MWT=0.5\nMIP=0.5",
-      "FVC=0\n6MWT=0\nMIP=0"
-    ),
-    scenario = 1:4
-  )
-
-  ggplot(label_data) +
-    geom_text(aes(x = 0, y = 0, label = details), size = 2.5) +
-    facet_wrap(~ scenario, nrow = 1) +
-    theme_void()
 }
 
 # Main Execution ----
@@ -361,50 +370,104 @@ main_variability_analysis <- function() {
   # Run analysis
   variability_results <- run_variability_analysis()
 
-  # Create plots
+  # Create plots using improved plotting functions
   plots <- create_variability_plots(variability_results)
-  facet_labels <- create_scenario_labels()
-
-  # Combine plots
-  library(ggpubr)
-
-  # Selection variability figure
-  selection_figure <- ggarrange(
-    facet_labels,
-    plots$selection_plot,
-    ncol = 1,
-    legend = "bottom",
-    align = "v",
-    heights = c(0.1, 0.9),
-    labels = c("", "A")
-  )
-
-  # Power variability figure
-  power_figure <- ggarrange(
-    facet_labels,
-    plots$power_plot,
-    ncol = 1,
-    legend = "bottom",
-    align = "v",
-    heights = c(0.1, 0.9),
-    labels = c("", "B")
-  )
 
   # Save results
   save(variability_results, file = "random_cohort_variability_results.RData")
 
-  # Save figures
-  ggsave("endpoint_selection_variability.pdf", selection_figure,
-         width = 165, height = 60, units = "mm", dpi = 300)
+  # Save figures with improved formatting (standalone with facet labels)
+  ggsave("endpoint_selection_variability.pdf", plots$selection_plot,
+         width = 180, height = 70, units = "mm", dpi = 300)
 
-  ggsave("study_success_variability.pdf", power_figure,
-         width = 165, height = 60, units = "mm", dpi = 300)
+  ggsave("study_success_variability.pdf", plots$power_plot,
+         width = 180, height = 70, units = "mm", dpi = 300)
 
-  cat("Variability analysis complete! Results and figures saved.\n")
+  # Display plots for preview
+  print("Selection Variability Plot:")
+  print(plots$selection_plot)
+
+  print("Power Variability Plot:")
+  print(plots$power_plot)
+
+  cat("\nVariability analysis complete! Results and figures saved.\n")
+  cat("Figures saved:\n")
+  cat("- endpoint_selection_variability.pdf\n")
+  cat("- study_success_variability.pdf\n")
+
+  # Summary Statistics
+  cat("\nGenerating summary statistics...\n")
+
+  # Prepare data for summary statistics
+  prob_select_long <- melt(variability_results$prob_select)
+  names(prob_select_long) <- c("Dataset", "Setting", "Endpoint", "SelectionProb")
+
+  prob_select_long <- prob_select_long |>
+    mutate(
+      endpoint_name = case_when(
+        Endpoint == 1 ~ "FVC",
+        Endpoint == 2 ~ "6MWT",
+        Endpoint == 3 ~ "MIP"
+      ),
+      endpoint_name = factor(endpoint_name, levels = c("FVC", "6MWT", "MIP")),
+      scenario_num = ((Setting - 1) %% 4) + 1,
+      scenario_label = case_when(
+        scenario_num == 1 ~ "FVC=0.5 6MWT=0 MIP=0",
+        scenario_num == 2 ~ "FVC=0.5 6MWT=0.25 MIP=0",
+        scenario_num == 3 ~ "FVC=0.5 6MWT=0.5 MIP=0.5",
+        scenario_num == 4 ~ "FVC=0 6MWT=0 MIP=0"
+      )
+    )
+
+  cat("\nSelection variability by scenario:\n")
+  selection_summary <- prob_select_long |>
+    group_by(scenario_label, endpoint_name) |>
+    summarise(
+      mean_selection = mean(SelectionProb),
+      sd_selection = sd(SelectionProb),
+      .groups = "drop"
+    )
+  print(selection_summary)
+
+  # Power summary
+  power_long <- melt(variability_results$power[,,1])
+  names(power_long) <- c("Dataset", "Setting", "Power")
+
+  power_long <- power_long |>
+    mutate(
+      info_fraction = case_when(
+        Setting %in% 1:4 ~ 0.25,
+        Setting %in% 5:8 ~ 0.30,
+        Setting %in% 9:12 ~ 0.50,
+        Setting %in% 13:16 ~ 0.60,
+        Setting %in% 17:20 ~ 0.75,
+        Setting %in% 21:24 ~ 0.80
+      ),
+      scenario_num = ((Setting - 1) %% 4) + 1,
+      scenario_label = case_when(
+        scenario_num == 1 ~ "FVC=0.5 6MWT=0 MIP=0",
+        scenario_num == 2 ~ "FVC=0.5 6MWT=0.25 MIP=0",
+        scenario_num == 3 ~ "FVC=0.5 6MWT=0.5 MIP=0.5",
+        scenario_num == 4 ~ "FVC=0 6MWT=0 MIP=0"
+      ),
+      power_variance = Power * (1 - Power)
+    )
+
+  cat("\nPower variability by scenario:\n")
+  power_summary <- power_long |>
+    group_by(scenario_label, info_fraction) |>
+    summarise(
+      mean_power = mean(Power),
+      sd_power = sd(Power),
+      mean_variance = mean(power_variance),
+      .groups = "drop"
+    )
+  print(power_summary)
 
   return(list(
     results = variability_results,
-    plots = list(selection = selection_figure, power = power_figure)
+    plots = plots,
+    summaries = list(selection = selection_summary, power = power_summary)
   ))
 }
 
